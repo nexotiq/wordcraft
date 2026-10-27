@@ -487,7 +487,13 @@ impl<'a> Flow<'a> {
             && let Some(placed_bottom) = item_bottom(y, &self.pl, l0, l1)
             && placed_bottom > pb.bottom + 0.01
         {
-            pb.bottom = pb.body_floor().max(placed_bottom).min(pb.orig_bottom);
+            if pb.next_starts_page && self.p.section.is_some() && self.p.text.is_empty() && self.p.objects.is_empty() && !pb.fresh() {
+                // #3974: this closing mark stays here for its caret even though it does not fit.
+                // It neither expands the note area boundary nor contributes to body_floor().
+                pb.note_ignored_mark = Some(self.block);
+            } else {
+                pb.bottom = pb.body_floor().max(placed_bottom).min(pb.orig_bottom);
+            }
         }
         let mut items = Vec::new();
         let mut edges = Edges { top: if l0 == 0 { rooms.top } else { 0.0 }, bottom: if l1 >= n { rooms.bottom } else { 0.0 }, up: 0.0 };
@@ -709,6 +715,8 @@ fn add_items(pb: &mut PageBuilder, behind: Vec<Placed>, items: Vec<Placed>) {
     }
 }
 
+/// Place a body paragraph across columns/pages, collecting its notes and retaining its caret.
+/// An empty next-page section mark may overflow in place without displacing reserved footnotes.
 fn place_para_in_flow(ctx: &mut Ctx, pb: &mut PageBuilder, p: &Paragraph, block: usize, body_top: f32) {
     let mut f = Flow::new(ctx, pb, p, (block, body_top));
     let spot = |pb: &PageBuilder| (pb.pages.len(), pb.col);

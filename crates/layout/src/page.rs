@@ -36,6 +36,9 @@ pub(crate) struct PageBuilder<'a> {
     /// The next section starts on a new page: this section's closing mark, when empty, needs no
     /// room (Word leaves it on a full page rather than starting a page for it).
     pub(crate) next_starts_page: bool,
+    /// Top-level block of an empty section mark retained past this page's footnote area only
+    /// for its caret. Its line must not push the notes down; reset when a new page starts.
+    pub(crate) note_ignored_mark: Option<usize>,
     /// The number the next page takes instead of counting on: a section restarting its
     /// numbering, possibly at 0 (a cover page numbered 0).
     pub(crate) restart_at: Option<u32>,
@@ -115,13 +118,20 @@ impl PageBuilder<'_> {
             Some(first) => self.seps.sep_h(first.cont) + notes.iter().map(|n| n.h).sum::<f32>(),
         }
     }
-    /// The lowest bottom of the body text and tables on the current page.
+    /// The lowest bottom of body text and tables that reserve space above the current notes.
+    /// A section mark retained past the note area keeps its caret line without reserving room.
     pub(crate) fn body_floor(&self) -> f32 {
         let Some(pg) = self.pages.last() else { return self.top };
         pg.items
             .iter()
             .skip(self.page_items_start)
-            .filter(|it| matches!(it, Placed::Lines { story: StoryRef::Body, .. } | Placed::Cell { story: StoryRef::Body, .. }))
+            .filter(|it| match it {
+                Placed::Lines { story: StoryRef::Body, path, .. } => {
+                    !(path.0.len() == 1 && path.0.first().is_some_and(|b| Some(*b as usize) == self.note_ignored_mark))
+                }
+                Placed::Cell { story: StoryRef::Body, .. } => true,
+                _ => false,
+            })
             .map(|it| v_span(it).1)
             .fold(self.top, f32::max)
     }
@@ -280,6 +290,8 @@ impl PageBuilder<'_> {
         self.page_items_start = self.pages.last().map_or(0, |p| p.items.len());
         true
     }
+    /// Finish this page's alignment and notes, then initialize the next page's body and columns.
+    /// Carried notes reserve space again; a closing-mark exclusion belongs only to the old page.
     pub(crate) fn new_page(&mut self, first_block: usize, body_top: f32) {
         self.apply_valign();
         self.flush_notes();
@@ -333,6 +345,7 @@ impl PageBuilder<'_> {
         }
         self.max_y = self.top;
         self.content_bottom = self.top;
+        self.note_ignored_mark = None;
         self.cap_columns();
     }
     /// Where the columns end on this page: the page bottom above its footnotes, or higher up

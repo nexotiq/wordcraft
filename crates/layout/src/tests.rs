@@ -14,6 +14,7 @@ pub(crate) mod linear;
 mod nbsp;
 mod numeral;
 mod pages;
+mod section_notes;
 mod styleref;
 mod table_contact;
 mod textbox;

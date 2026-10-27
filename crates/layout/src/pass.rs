@@ -176,6 +176,7 @@ fn new_page_builder<'p>(sect: &'p SectionProps, early: &'p EarlyFloats, web: boo
         prev: None,
         after_break_mark: false,
         next_starts_page: false,
+        note_ignored_mark: None,
         restart_at: None,
         excl: Vec::new(),
         float_tables: Vec::new(),
